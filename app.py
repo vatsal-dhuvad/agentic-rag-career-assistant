@@ -21,6 +21,10 @@ from src.utils.skills import IMPORTANT_SKILLS, extract_known_skills
 from src.vectordb.vector_store import build_vector_store
 
 
+MAX_UPLOADED_RESUMES = 2
+MAX_SHOW_PER_RESUME = 2
+MAX_ASK_PER_RESUME = 5
+
 DEFAULT_RESUME_OVERVIEW = """
 Vatsal Dhuvad is a Computer Engineering student focused on Data Science, Machine Learning, AI/ML, Generative AI, Agentic AI, LLM applications, LangChain, LangGraph, RAG, and Computer Vision. His profile is well suited for AI/ML internships, Data Science internships, Python Developer internships, Generative AI internships, and entry-level roles involving intelligent automation or AI-powered tools.
 
@@ -94,6 +98,45 @@ NON_TECH_JOB_KEYWORDS = [
 def make_text_key(*values: str) -> str:
     joined_text = "\n---\n".join(values)
     return hashlib.sha256(joined_text.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def setup_usage_limits() -> None:
+    st.session_state.setdefault("uploaded_resume_keys", [])
+    st.session_state.setdefault("show_count_by_resume", {})
+    st.session_state.setdefault("ask_count_by_resume", {})
+
+
+def get_resume_key(resume_text: str) -> str:
+    return make_text_key(resume_text or "empty-resume")
+
+
+def can_upload_more_resumes(upload_key: str) -> bool:
+    uploaded_keys = st.session_state["uploaded_resume_keys"]
+    return upload_key in uploaded_keys or len(uploaded_keys) < MAX_UPLOADED_RESUMES
+
+
+def remember_uploaded_resume(upload_key: str) -> None:
+    uploaded_keys = st.session_state["uploaded_resume_keys"]
+    if upload_key not in uploaded_keys:
+        uploaded_keys.append(upload_key)
+
+
+def get_show_count(resume_key: str) -> int:
+    return st.session_state["show_count_by_resume"].get(resume_key, 0)
+
+
+def get_ask_count(resume_key: str) -> int:
+    return st.session_state["ask_count_by_resume"].get(resume_key, 0)
+
+
+def add_show_count(resume_key: str) -> None:
+    counts = st.session_state["show_count_by_resume"]
+    counts[resume_key] = counts.get(resume_key, 0) + 1
+
+
+def add_ask_count(resume_key: str) -> None:
+    counts = st.session_state["ask_count_by_resume"]
+    counts[resume_key] = counts.get(resume_key, 0) + 1
 
 
 def show_resume_in_sidebar(title: str, pdf_bytes: bytes | None = None, text_preview: str = "") -> None:
@@ -275,6 +318,7 @@ def main() -> None:
         page_icon="AI",
         layout="wide",
     )
+    setup_usage_limits()
     st.markdown(
         """
         <style>
@@ -345,9 +389,18 @@ def main() -> None:
             active_resume_pdf_bytes = DEFAULT_RESUME_PATH.read_bytes()
     elif uploaded_resume:
         active_resume_name = uploaded_resume.name
+        upload_bytes = uploaded_resume.getvalue()
+        upload_key = hashlib.sha256(uploaded_resume.name.encode("utf-8") + upload_bytes).hexdigest()
+        if not can_upload_more_resumes(upload_key):
+            st.warning(
+                f"You can check only {MAX_UPLOADED_RESUMES} uploaded resumes in one session. "
+                "Please refresh later or continue with already uploaded resumes."
+            )
+            st.stop()
+        remember_uploaded_resume(upload_key)
         resume_text = extract_text_from_upload(uploaded_resume)
         if uploaded_resume.name.lower().endswith(".pdf"):
-            active_resume_pdf_bytes = uploaded_resume.getvalue()
+            active_resume_pdf_bytes = upload_bytes
 
     show_resume_in_sidebar(
         active_resume_name,
@@ -377,6 +430,13 @@ def main() -> None:
     if not resume_text:
         st.stop()
 
+    resume_key = get_resume_key(resume_text)
+
+    st.caption(
+        f"Usage left for this resume: Show {MAX_SHOW_PER_RESUME - get_show_count(resume_key)}/{MAX_SHOW_PER_RESUME}, "
+        f"Ask AI {MAX_ASK_PER_RESUME - get_ask_count(resume_key)}/{MAX_ASK_PER_RESUME}"
+    )
+
     should_build_vector_store = resume_source != "Use default Vatsal_Dhuvad_Resume.pdf" or ask_clicked
     vector_key = make_text_key(resume_text, job_text or "general-career-assistant")
     if should_build_vector_store and st.session_state.get("vector_key") != vector_key:
@@ -398,6 +458,9 @@ def main() -> None:
         if not question.strip():
             with ask_answer_box.container():
                 st.warning("Please enter a question.")
+        elif get_ask_count(resume_key) >= MAX_ASK_PER_RESUME:
+            with ask_answer_box.container():
+                st.warning(f"Ask AI limit reached. You can ask {MAX_ASK_PER_RESUME} questions per resume.")
         elif is_identity_question(question):
             with ask_answer_box.container():
                 st.write(APP_IDENTITY)
@@ -412,6 +475,7 @@ def main() -> None:
                                 job_text or "General AI/ML internship preparation",
                             )
                         answer = ask_rag_question(llm, st.session_state["vector_store"], question)
+                        add_ask_count(resume_key)
                         st.write(answer)
                     except Exception as error:
                         show_friendly_llm_error(error)
@@ -433,6 +497,8 @@ def main() -> None:
     if show_job_match:
         if not job_text:
             st.warning("Please enter a job description first.")
+        elif get_show_count(resume_key) >= MAX_SHOW_PER_RESUME:
+            st.warning(f"Show limit reached. You can check {MAX_SHOW_PER_RESUME} job descriptions per resume.")
         elif st.session_state.get("analysis_key") != analysis_key:
             if resume_source == "Use default Vatsal_Dhuvad_Resume.pdf":
                 try:
@@ -449,11 +515,13 @@ def main() -> None:
                     st.session_state["analysis_key"] = analysis_key
                     st.session_state.pop("analysis_result", None)
                     st.session_state.pop("final_report", None)
+                    add_show_count(resume_key)
             else:
                 st.session_state["default_job_result"] = build_uploaded_resume_match_text(resume_text, job_text)
                 st.session_state["analysis_key"] = analysis_key
                 st.session_state.pop("analysis_result", None)
                 st.session_state.pop("final_report", None)
+                add_show_count(resume_key)
 
     if not job_text and "positive_overview" in st.session_state:
         st.subheader("Resume Overview")
