@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import re
 
@@ -106,7 +105,6 @@ def show_resume_in_sidebar(title: str, pdf_bytes: bytes | None = None, text_prev
         return
 
     if pdf_bytes:
-        encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
         resume_button_col, skills_button_col = st.sidebar.columns(2)
         with resume_button_col:
             st.download_button(
@@ -121,17 +119,8 @@ def show_resume_in_sidebar(title: str, pdf_bytes: bytes | None = None, text_prev
                 data="\n".join(IMPORTANT_SKILLS),
                 file_name="important_ai_ml_skills.txt",
             )
-        st.sidebar.markdown(
-            f"""
-            <iframe
-                src="data:application/pdf;base64,{encoded_pdf}"
-                width="100%"
-                height="390"
-                type="application/pdf">
-            </iframe>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.sidebar.success("Your resume loaded successfully.")
+        st.sidebar.caption("Use Download Resume to view the PDF.")
     else:
         st.sidebar.download_button(
             "Download AI Skills",
