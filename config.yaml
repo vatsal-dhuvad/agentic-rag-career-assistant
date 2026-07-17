@@ -1,0 +1,24 @@
+app:
+  name: Agentic RAG Career Assistant
+  default_resume: Vatsal_Dhuvad_Resume.pdf
+
+models:
+  llm_provider: Groq
+  default_llm: llama-3.1-8b-instant
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+
+rag:
+  vector_database: FAISS
+  chunk_size: 700
+  chunk_overlap: 120
+  retrieval_k: 6
+
+features:
+  - Resume parsing
+  - Job matching
+  - Skill gap analysis
+  - ATS optimization
+  - Cover letter generation
+  - Interview preparation
+  - RAG-based career Q&A
+  - LangGraph multi-agent workflow
