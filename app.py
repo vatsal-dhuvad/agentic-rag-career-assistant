@@ -221,7 +221,7 @@ Yes, this resume is suitable for this technology-related job description.
 {skill_line}
 
 ### Resume Direction
-This profile can be presented positively for AI/ML, Data Science, Python, Analytics, Generative AI, or technology internship opportunities.
+This profile can be presented strongly for AI/ML, Data Science, Python, Analytics, Generative AI, or technology internship opportunities.
 """
 
     return f"""
@@ -240,8 +240,9 @@ def get_default_resume_match_line(llm, job_text: str) -> str:
     return run_text_prompt(
         llm,
         (
-            "You are a strict but positive job matching assistant. "
-            "Return only one short sentence. No explanation."
+            "You are a strict job matching assistant. "
+            "Return only one short sentence. No explanation. "
+            "Do not mention that you are using a positive, supportive, or strength-focused style."
         ),
         f"""
 Candidate profile:
@@ -289,14 +290,15 @@ def build_positive_resume_overview(llm, resume_text: str) -> str:
     return run_text_prompt(
         llm,
         (
-            "You are a positive career assistant. Highlight only strengths and suitable opportunities. "
-            "Do not show scores, weak points, missing skills, or negative comments."
+            "You are a career assistant. Highlight strengths and suitable opportunities. "
+            "Do not show scores, weak points, missing skills, or negative comments. "
+            "Do not mention that you are using a positive, supportive, or strength-focused style."
         ),
         f"""
 Resume:
 {resume_text}
 
-Create a positive resume overview with:
+Create a resume overview with:
 1. Best professional positioning
 2. Strong technical skills
 3. Strong project highlights
@@ -547,7 +549,7 @@ def main() -> None:
         )
 
         with tab1:
-            st.subheader("Positive Job Match")
+            st.subheader("Job Match")
             st.markdown(result["match_report"])
 
         with tab2:

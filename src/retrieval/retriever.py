@@ -25,10 +25,11 @@ def ask_rag_question(llm, vector_store, question: str) -> str:
         {
             "query": (
                 question
-                + "\nAnswer as a positive agentic RAG career assistant. "
+                + "\nAnswer as an agentic RAG career assistant. "
                 + "Use resume/job context when available. Do not fake experience. "
-                + "Focus only on strengths, matching skills, strong projects, suitable roles, and helpful next actions. "
-                + "Do not give scores, weak points, negative comments, or discouraging wording."
+                + "Focus on strengths, matching skills, strong projects, suitable roles, and helpful next actions. "
+                + "Do not give scores, weak points, negative comments, or discouraging wording. "
+                + "Do not mention that the answer is positive, supportive, or strength-focused."
             )
         }
     )

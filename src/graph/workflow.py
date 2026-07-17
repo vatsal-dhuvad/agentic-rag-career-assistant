@@ -38,14 +38,14 @@ def create_career_workflow(llm):
         local_result = skill_extractor_runnable.invoke(
             state["resume_text"] + " " + state["job_description"]
         )
-        positive_local_result = {
+        matched_local_result = {
             "matched_important_skills": local_result.get("matched_important_skills", []),
             "matched_count": local_result.get("matched_count", 0),
         }
 
         llm_result = run_json_prompt(
             llm,
-            "You are a positive AI Skill Extraction Agent. Only identify skills and strengths that are already present or clearly supported by the resume.",
+            "You are an AI Skill Extraction Agent. Only identify skills and strengths that are already present or clearly supported by the resume. Do not mention the response style.",
             f"""
 Resume:
 {state["resume_text"]}
@@ -59,14 +59,14 @@ Extract JSON with these keys:
 - data_science_skills
 - rag_agentic_ai_skills
 - strongest_resume_keywords
-- positive_role_keywords
+- role_keywords
 """,
         )
 
         state["skill_keywords_json"] = (
             "Matched skill extractor:\n"
-            f"{positive_local_result}\n\n"
-            "Positive structured skill extractor:\n"
+            f"{matched_local_result}\n\n"
+            "Structured skill extractor:\n"
             f"{llm_result}"
         )
         return state
@@ -75,8 +75,9 @@ Extract JSON with these keys:
         state["match_report"] = run_text_prompt(
             llm,
             (
-                "You are a positive Job Match Agent. Show only helpful, confident, and opportunity-focused points. "
-                "Do not provide an overall score. Do not mention weak areas, gaps, missing skills, negatives, or limitations."
+                "You are a Job Match Agent. Show only helpful, confident, and opportunity-focused points. "
+                "Do not provide an overall score. Do not mention weak areas, gaps, missing skills, negatives, or limitations. "
+                "Do not mention that the answer is positive, supportive, or strength-focused."
             ),
             f"""
 Resume:
@@ -92,7 +93,7 @@ Structured Skill Keywords:
 {state["skill_keywords_json"]}
 
 Give:
-1. Positive fit summary
+1. Fit summary
 2. Matching skills
 3. Strong project matches
 4. Best-fit internship or job roles
@@ -103,7 +104,7 @@ Rules:
 - Do not show weak points.
 - Do not show negative comments.
 - Do not use words like weak, missing, gap, lack, poor, low, or not suitable.
-- Keep the response positive and useful for finding better internships or jobs.
+- Keep the response useful for finding better internships or jobs.
 """,
         )
         return state
@@ -112,8 +113,8 @@ Rules:
         state["skill_gap_report"] = run_text_prompt(
             llm,
             (
-                "You are a positive Career Growth Agent. Recommend only helpful next-step skills in a motivating way. "
-                "Do not describe the resume negatively."
+                "You are a Career Growth Agent. Recommend only helpful next-step skills in a motivating way. "
+                "Do not describe the resume negatively. Do not mention the response style."
             ),
             f"""
 Resume:
@@ -131,7 +132,7 @@ Structured Skill Keywords:
 Give:
 1. Current skill strengths
 2. High-value skills to learn next
-3. Positive learning roadmap
+3. Learning roadmap
 4. Best 5 keywords to add only after the user builds or learns them
 
 Rules:
@@ -146,8 +147,8 @@ Rules:
         state["ats_report"] = run_text_prompt(
             llm,
             (
-                "You are a positive Resume Strengthening Agent. Suggest only constructive improvements that make the resume stronger. "
-                "Do not provide scores or negative comments."
+                "You are a Resume Strengthening Agent. Suggest only constructive improvements that make the resume stronger. "
+                "Do not provide scores or negative comments. Do not mention the response style."
             ),
             f"""
 Resume:
@@ -167,12 +168,12 @@ Give:
 1. Strong resume summary suggestion
 2. Stronger skills section suggestion
 3. Stronger project bullet suggestions
-4. Positive keywords to include naturally
+4. Keywords to include naturally
 
 Rules:
 - Do not show ATS score.
 - Do not mention problems or weaknesses.
-- Keep all suggestions positive and honest.
+- Keep all suggestions constructive and honest.
 """,
         )
         return state
@@ -217,7 +218,7 @@ Generate:
 
     def final_report_agent(state: CareerState) -> CareerState:
         state["final_report"] = f"""
-## Positive Job Match
+## Job Match
 {state["match_report"]}
 
 ## Career Growth Suggestions
