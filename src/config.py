@@ -4,6 +4,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_RESUME_PATH = BASE_DIR / "Vatsal_Dhuvad_Resume.pdf"
 PORTFOLIO_URL = "https://vatsal-dhuvad.vercel.app/"
+FIRESTORE_PORTFOLIO_URL = (
+    "https://firestore.googleapis.com/v1/projects/vatsal-portfolio-5699f/"
+    "databases/(default)/documents/portfolio/data"
+)
 
 APP_IDENTITY = (
     "I am an Agentic RAG-based Career Assistant built by Vatsal Dhuvad, "

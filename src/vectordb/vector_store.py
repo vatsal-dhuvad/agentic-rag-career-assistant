@@ -3,6 +3,11 @@ from langchain_core.documents import Document
 
 from src.chunking.chunker import split_documents
 from src.embeddings.embedder import get_embedding_model
+from src.ingestion.loader import (
+    build_portfolio_first_impression,
+    build_portfolio_skills_summary,
+    build_portfolio_summary,
+)
 from src.utils.skills import IMPORTANT_SKILLS
 
 
@@ -17,6 +22,30 @@ def build_vector_store(resume_text: str, job_description: str, portfolio_text: s
     ]
 
     if portfolio_text.strip():
+        first_impression = build_portfolio_first_impression(portfolio_text)
+        if first_impression:
+            documents.append(
+                Document(
+                    page_content=first_impression,
+                    metadata={"source": "portfolio_first_impression"},
+                )
+            )
+        portfolio_summary = build_portfolio_summary(portfolio_text)
+        if portfolio_summary:
+            documents.append(
+                Document(
+                    page_content=portfolio_summary,
+                    metadata={"source": "portfolio_projects"},
+                )
+            )
+        portfolio_skills = build_portfolio_skills_summary(portfolio_text)
+        if portfolio_skills:
+            documents.append(
+                Document(
+                    page_content=portfolio_skills,
+                    metadata={"source": "portfolio_skills"},
+                )
+            )
         documents.append(
             Document(page_content=portfolio_text, metadata={"source": "portfolio"})
         )

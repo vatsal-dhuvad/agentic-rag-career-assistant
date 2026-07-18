@@ -4,7 +4,8 @@ app:
   portfolio_url: https://vatsal-dhuvad.vercel.app/
 
 models:
-  llm_provider: Groq
+  llm_provider: Gemini with Groq and Mistral fallback
+  default_gemini: gemini-2.5-flash-lite
   default_llm: llama-3.1-8b-instant
   embedding_model: sentence-transformers/all-MiniLM-L6-v2
 

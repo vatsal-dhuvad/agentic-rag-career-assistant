@@ -12,6 +12,9 @@ from src.config import (
 )
 from src.ingestion.loader import (
     clean_text,
+    build_portfolio_first_impression,
+    build_portfolio_skills_summary,
+    build_portfolio_summary,
     extract_text_from_upload,
     load_default_resume_text,
     load_portfolio_text,
@@ -190,6 +193,32 @@ def is_identity_question(question: str) -> bool:
     )
 
 
+def is_portfolio_projects_question(question: str) -> bool:
+    text = question.lower()
+    return "portfolio" in text and ("project" in text or "projects" in text)
+
+
+def is_portfolio_overview_question(question: str) -> bool:
+    text = question.lower()
+    return (
+        "portfolio" in text
+        and (
+            "overview" in text
+            or "first impression" in text
+            or ("project" in text and "skill" in text)
+            or ("projects" in text and "skills" in text)
+        )
+    )
+
+
+def is_portfolio_skills_question(question: str) -> bool:
+    text = question.lower()
+    return (
+        ("portfolio" in text or "recruiter" in text or "vatsal" in text)
+        and ("skill" in text or "skills" in text or "technologies" in text or "tech stack" in text)
+    )
+
+
 def is_tech_job_description(job_text: str) -> bool:
     text = job_text.lower()
     tech_hits = sum(1 for keyword in TECH_JOB_KEYWORDS if keyword in text)
@@ -281,6 +310,31 @@ def show_project_stack() -> None:
     st.sidebar.write("Local Hugging Face Embeddings")
     st.sidebar.write("Groq LLM")
     st.sidebar.write("Streamlit")
+
+
+def show_portfolio_sidebar_card(portfolio_text: str) -> None:
+    project_count = build_portfolio_summary(portfolio_text).count("\n- ")
+    skills_summary = build_portfolio_skills_summary(portfolio_text)
+    skill_count = 0
+    if skills_summary:
+        skills_text = skills_summary.replace(
+            "Recruiter-friendly skills from Vatsal Dhuvad's portfolio:",
+            "",
+        )
+        skill_count = len([skill for skill in skills_text.split(",") if skill.strip()])
+
+    st.sidebar.header("Portfolio")
+    st.sidebar.caption("Vatsal Dhuvad - Data Scientist | ML Engineer")
+    st.sidebar.link_button("Open Portfolio", PORTFOLIO_URL)
+
+    if project_count:
+        st.sidebar.write(f"Projects: {project_count}")
+    if skill_count:
+        st.sidebar.write(f"Skills: {skill_count}+")
+
+    st.sidebar.caption(
+        "Portfolio data is connected to Ask AI through WebBaseLoader, Firestore, and FAISS."
+    )
 
 
 def show_friendly_llm_error(error: Exception) -> None:
@@ -424,7 +478,7 @@ def main() -> None:
         st.divider()
         st.header("Model Settings")
         model_name = st.selectbox(
-            "Groq model",
+            "Fallback Groq model",
             [
                 DEFAULT_GROQ_MODEL,
                 "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -432,12 +486,16 @@ def main() -> None:
             index=0,
             key="sidebar_model_after_resume",
         )
+        st.write("Primary LLM: Gemini 2.5 Flash Lite")
         st.write("Embedding model:", EMBEDDING_MODEL)
         st.write("Vector database: FAISS")
         if portfolio_text:
             st.caption("Portfolio connected with WebBaseLoader")
         else:
             st.caption("Portfolio loader will be skipped if the website is unavailable")
+        if resume_source == "Use default Vatsal_Dhuvad_Resume.pdf" and portfolio_text:
+            st.divider()
+            show_portfolio_sidebar_card(portfolio_text)
         st.divider()
         show_project_stack()
 
@@ -484,6 +542,30 @@ def main() -> None:
         elif is_identity_question(question):
             with ask_answer_box.container():
                 st.write(APP_IDENTITY)
+        elif is_portfolio_overview_question(question):
+            with ask_answer_box.container():
+                portfolio_overview = build_portfolio_first_impression(portfolio_text)
+                if portfolio_overview:
+                    st.markdown(portfolio_overview)
+                    add_ask_count(resume_key)
+                else:
+                    st.write("Portfolio overview is not available right now.")
+        elif is_portfolio_projects_question(question):
+            with ask_answer_box.container():
+                portfolio_summary = build_portfolio_summary(portfolio_text)
+                if portfolio_summary:
+                    st.markdown(portfolio_summary)
+                    add_ask_count(resume_key)
+                else:
+                    st.write("Portfolio project details are not available right now.")
+        elif is_portfolio_skills_question(question):
+            with ask_answer_box.container():
+                portfolio_skills = build_portfolio_skills_summary(portfolio_text)
+                if portfolio_skills:
+                    st.markdown(portfolio_skills)
+                    add_ask_count(resume_key)
+                else:
+                    st.write("Portfolio skill details are not available right now.")
         else:
             with ask_answer_box.container():
                 with st.spinner("Thinking..."):

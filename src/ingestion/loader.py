@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
-from src.config import DEFAULT_RESUME_PATH, PORTFOLIO_URL
+from src.config import DEFAULT_RESUME_PATH, FIRESTORE_PORTFOLIO_URL, PORTFOLIO_URL
 
 
 def clean_text(text: str) -> str:
@@ -107,7 +107,212 @@ def load_portfolio_text(url: str = PORTFOLIO_URL) -> str:
     if len(page_text) > 100:
         return page_text
 
+    firestore_text = load_portfolio_text_from_firestore()
+    if firestore_text:
+        return firestore_text
+
     return load_portfolio_text_from_static_site(url)
+
+
+def build_portfolio_summary(portfolio_text: str) -> str:
+    if not portfolio_text.strip():
+        return ""
+
+    found_projects = re.findall(
+        r"Project: ([^\n]+)\nDescription: ([^\n]+)\nTechnologies: ([^\n]+)",
+        portfolio_text,
+    )
+
+    if not found_projects:
+        return ""
+
+    project_lines = [
+        f"- {title.strip()}: {description.strip()} Technologies: {technologies.strip()}."
+        for title, description, technologies in found_projects
+    ]
+
+    return clean_text(
+        "Portfolio project list from Vatsal Dhuvad's website:\n"
+        + "\n".join(project_lines)
+    )
+
+
+def build_portfolio_skills_summary(portfolio_text: str) -> str:
+    if not portfolio_text.strip():
+        return ""
+
+    skill_names = []
+    skills_match = re.search(r"Portfolio skills: ([^\n]+)", portfolio_text)
+    if skills_match:
+        skill_names.extend(split_comma_values(skills_match.group(1)))
+
+    for technologies in re.findall(r"Technologies: ([^\n]+)", portfolio_text):
+        skill_names.extend(split_comma_values(technologies))
+
+    unique_skills = []
+    seen = set()
+    for skill in skill_names:
+        normalized = skill.lower()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique_skills.append(skill)
+
+    if not unique_skills:
+        return ""
+
+    return clean_text(
+        "Recruiter-friendly skills from Vatsal Dhuvad's portfolio:\n"
+        + ", ".join(unique_skills)
+    )
+
+
+def build_portfolio_first_impression(portfolio_text: str) -> str:
+    if not portfolio_text.strip():
+        return ""
+
+    profile_line = ""
+    profile_match = re.search(r"Portfolio profile: ([^\n]+)", portfolio_text)
+    if profile_match:
+        profile_line = profile_match.group(1).strip()
+
+    skills_summary = build_portfolio_skills_summary(portfolio_text)
+    projects_summary = build_portfolio_summary(portfolio_text)
+
+    parts = ["### Portfolio Overview"]
+
+    if profile_line:
+        parts.append(profile_line)
+
+    if skills_summary:
+        parts.append("### Recruiter-Friendly Skills")
+        parts.append(skills_summary.replace("Recruiter-friendly skills from Vatsal Dhuvad's portfolio:", "").strip())
+
+    if projects_summary:
+        parts.append("### Portfolio Projects")
+        parts.append(projects_summary.replace("Portfolio project list from Vatsal Dhuvad's website:", "").strip())
+
+    return clean_text("\n\n".join(parts))
+
+
+def split_comma_values(text: str) -> list[str]:
+    return [
+        item.strip()
+        for item in text.split(",")
+        if item.strip()
+    ]
+
+
+def load_portfolio_text_from_firestore() -> str:
+    try:
+        import requests
+
+        response = requests.get(
+            FIRESTORE_PORTFOLIO_URL,
+            timeout=30,
+            headers={"User-Agent": os.environ["USER_AGENT"]},
+        )
+        response.raise_for_status()
+        data = response.json()
+    except Exception:
+        return ""
+
+    fields = data.get("fields", {})
+    if not fields:
+        return ""
+
+    portfolio = {
+        key: read_firestore_value(value)
+        for key, value in fields.items()
+    }
+
+    text_parts = []
+    profile = portfolio.get("profile", {})
+    if profile:
+        text_parts.append(
+            "Portfolio profile: "
+            + " | ".join(
+                str(profile.get(key, ""))
+                for key in ["name", "title", "email", "phone", "location", "heroBio", "bio"]
+                if profile.get(key)
+            )
+        )
+
+    skills = portfolio.get("skills", [])
+    if skills:
+        skill_names = [skill.get("name", "") for skill in skills if skill.get("name")]
+        text_parts.append("Portfolio skills: " + ", ".join(skill_names))
+
+    projects = portfolio.get("projects", [])
+    for project in projects:
+        technologies = project.get("technologies", [])
+        if isinstance(technologies, list):
+            technologies_text = ", ".join(str(item) for item in technologies)
+        else:
+            technologies_text = str(technologies)
+
+        text_parts.append(
+            "\n".join(
+                [
+                    f"Project: {project.get('title', '')}",
+                    f"Description: {project.get('description', '')}",
+                    f"Technologies: {technologies_text}",
+                    f"Category: {project.get('category', '')}",
+                    f"GitHub: {project.get('github', '')}",
+                    f"Demo: {project.get('demo', '')}",
+                ]
+            )
+        )
+
+    certificates = portfolio.get("certificates", [])
+    if certificates:
+        certificate_names = [
+            f"{item.get('name', '')} - {item.get('org', '')}"
+            for item in certificates
+            if item.get("name")
+        ]
+        text_parts.append("Portfolio certifications: " + "; ".join(certificate_names))
+
+    education = portfolio.get("education", [])
+    for item in education:
+        text_parts.append(
+            "Portfolio education: "
+            + " | ".join(
+                str(item.get(key, ""))
+                for key in ["degree", "institution", "startYear", "endYear", "grade", "description"]
+                if item.get(key)
+            )
+        )
+
+    social_links = portfolio.get("socialLinks", {})
+    if social_links:
+        text_parts.append(
+            "Portfolio links: "
+            + " | ".join(f"{key}: {value}" for key, value in social_links.items() if value)
+        )
+
+    return clean_text("\n\n".join(text_parts))
+
+
+def read_firestore_value(value: dict):
+    if "stringValue" in value:
+        return value["stringValue"]
+    if "integerValue" in value:
+        return int(value["integerValue"])
+    if "doubleValue" in value:
+        return float(value["doubleValue"])
+    if "booleanValue" in value:
+        return value["booleanValue"]
+    if "arrayValue" in value:
+        return [
+            read_firestore_value(item)
+            for item in value.get("arrayValue", {}).get("values", [])
+        ]
+    if "mapValue" in value:
+        return {
+            key: read_firestore_value(item)
+            for key, item in value.get("mapValue", {}).get("fields", {}).items()
+        }
+    return None
 
 
 def load_portfolio_text_from_static_site(url: str) -> str:

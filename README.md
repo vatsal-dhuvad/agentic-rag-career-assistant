@@ -1,6 +1,6 @@
 # Agentic RAG Career Assistant
 
-An AI-powered career assistant built by **Vatsal Dhuvad**, a Computer Engineering student. The app helps match a resume with AI/ML, Data Science, Generative AI, and technology job descriptions using Streamlit, LangChain, LangGraph, FAISS, local Hugging Face embeddings, Groq, and optional Mistral fallback.
+An AI-powered career assistant built by **Vatsal Dhuvad**, a Computer Engineering student. The app helps match a resume with AI/ML, Data Science, Generative AI, and technology job descriptions using Streamlit, LangChain, LangGraph, FAISS, local Hugging Face embeddings, Gemini, Groq, and optional Mistral fallback.
 
 ## Features
 
@@ -12,8 +12,8 @@ An AI-powered career assistant built by **Vatsal Dhuvad**, a Computer Engineerin
 - Supports RAG-based Ask AI from the active resume
 - Uses local embeddings with `sentence-transformers/all-MiniLM-L6-v2`
 - Stores vectors locally with FAISS
-- Uses Groq as the main LLM provider
-- Supports Mistral fallback if `MISTRAL_API_KEY` is added
+- Uses Gemini as the first LLM provider when `GEMINI_API_KEY` is added
+- Supports Groq and Mistral fallback if their API keys are added
 
 ## Project Structure
 
@@ -56,6 +56,7 @@ agentic_rag_career_assistant/
 - LangGraph
 - FAISS
 - Hugging Face sentence-transformers
+- Google Gemini API
 - Groq API
 - Mistral API fallback
 - pypdf
@@ -79,11 +80,12 @@ uv pip install -r requirements.txt
 Create a `.env` file:
 
 ```text
+GEMINI_API_KEY=your_gemini_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
 MISTRAL_API_KEY=your_mistral_api_key_here
 ```
 
-`MISTRAL_API_KEY` is optional, but useful when the Groq limit is reached.
+`GEMINI_API_KEY`, `GROQ_API_KEY`, and `MISTRAL_API_KEY` are all optional individually, but at least one AI API key is required. The app tries Gemini first, then Groq, then Mistral.
 
 Run the app:
 
@@ -105,6 +107,7 @@ app.py
 5. Add secrets in Streamlit Cloud:
 
 ```toml
+GEMINI_API_KEY = "your_gemini_api_key_here"
 GROQ_API_KEY = "your_groq_api_key_here"
 MISTRAL_API_KEY = "your_mistral_api_key_here"
 ```
