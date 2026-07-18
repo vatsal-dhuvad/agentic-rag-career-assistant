@@ -1,6 +1,7 @@
 app:
   name: Agentic RAG Career Assistant
   default_resume: Vatsal_Dhuvad_Resume.pdf
+  portfolio_url: https://vatsal-dhuvad.vercel.app/
 
 models:
   llm_provider: Groq
@@ -21,4 +22,5 @@ features:
   - Cover letter generation
   - Interview preparation
   - RAG-based career Q&A
+  - Portfolio website loading with WebBaseLoader
   - LangGraph multi-agent workflow

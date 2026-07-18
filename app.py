@@ -8,11 +8,13 @@ from src.config import (
     DEFAULT_GROQ_MODEL,
     DEFAULT_RESUME_PATH,
     EMBEDDING_MODEL,
+    PORTFOLIO_URL,
 )
 from src.ingestion.loader import (
     clean_text,
     extract_text_from_upload,
     load_default_resume_text,
+    load_portfolio_text,
 )
 from src.llm.llm_client import get_llm
 from src.prompts.prompt_templates import run_text_prompt
@@ -108,6 +110,11 @@ def setup_usage_limits() -> None:
 
 def get_resume_key(resume_text: str) -> str:
     return make_text_key(resume_text or "empty-resume")
+
+
+@st.cache_data(ttl="6h")
+def get_cached_portfolio_text() -> str:
+    return load_portfolio_text(PORTFOLIO_URL)
 
 
 def can_upload_more_resumes(upload_key: str) -> bool:
@@ -266,6 +273,7 @@ def show_project_stack() -> None:
     st.sidebar.write("LangChain")
     st.sidebar.write("LangGraph")
     st.sidebar.write("RAG")
+    st.sidebar.write("WebBaseLoader")
     st.sidebar.write("LCEL")
     st.sidebar.write("Prompt Templates")
     st.sidebar.write("Output Parsers")
@@ -410,6 +418,8 @@ def main() -> None:
         text_preview=resume_text,
     )
 
+    portfolio_text = get_cached_portfolio_text()
+
     with st.sidebar:
         st.divider()
         st.header("Model Settings")
@@ -424,6 +434,10 @@ def main() -> None:
         )
         st.write("Embedding model:", EMBEDDING_MODEL)
         st.write("Vector database: FAISS")
+        if portfolio_text:
+            st.caption("Portfolio connected with WebBaseLoader")
+        else:
+            st.caption("Portfolio loader will be skipped if the website is unavailable")
         st.divider()
         show_project_stack()
 
@@ -440,9 +454,13 @@ def main() -> None:
     )
 
     should_build_vector_store = resume_source != "Use default Vatsal_Dhuvad_Resume.pdf" or ask_clicked
-    vector_key = make_text_key(resume_text, job_text or "general-career-assistant")
+    vector_key = make_text_key(resume_text, job_text or "general-career-assistant", portfolio_text)
     if should_build_vector_store and st.session_state.get("vector_key") != vector_key:
-        vector_store = build_vector_store(resume_text, job_text or "General AI/ML internship preparation")
+        vector_store = build_vector_store(
+            resume_text,
+            job_text or "General AI/ML internship preparation",
+            portfolio_text,
+        )
         st.session_state["resume_text"] = resume_text
         st.session_state["job_description"] = job_text
         st.session_state["vector_store"] = vector_store
@@ -475,6 +493,7 @@ def main() -> None:
                             st.session_state["vector_store"] = build_vector_store(
                                 resume_text,
                                 job_text or "General AI/ML internship preparation",
+                                portfolio_text,
                             )
                         answer = ask_rag_question(llm, st.session_state["vector_store"], question)
                         add_ask_count(resume_key)

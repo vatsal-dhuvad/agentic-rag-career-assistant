@@ -11,3 +11,4 @@ faiss-cpu
 sentence-transformers
 pypdf
 python-docx
+requests
