@@ -149,6 +149,11 @@ def add_ask_count(resume_key: str) -> None:
     counts[resume_key] = counts.get(resume_key, 0) + 1
 
 
+def update_loading(progress_bar, status_text, percent: int, message: str) -> None:
+    progress_bar.progress(percent, text=f"{percent}%")
+    status_text.caption(message)
+
+
 def show_resume_in_sidebar(title: str, pdf_bytes: bytes | None = None, text_preview: str = "") -> None:
     st.sidebar.header("Active Resume")
     st.sidebar.caption(title)
@@ -511,7 +516,7 @@ def main() -> None:
         f"Ask AI {MAX_ASK_PER_RESUME - get_ask_count(resume_key)}/{MAX_ASK_PER_RESUME}"
     )
 
-    should_build_vector_store = resume_source != "Use default Vatsal_Dhuvad_Resume.pdf" or ask_clicked
+    should_build_vector_store = False
     vector_key = make_text_key(resume_text, job_text or "general-career-assistant", portfolio_text)
     if should_build_vector_store and st.session_state.get("vector_key") != vector_key:
         vector_store = build_vector_store(
@@ -568,20 +573,31 @@ def main() -> None:
                     st.write("Portfolio skill details are not available right now.")
         else:
             with ask_answer_box.container():
-                with st.spinner("Thinking..."):
+                progress_bar = st.progress(0, text="0%")
+                status_text = st.empty()
+                update_loading(progress_bar, status_text, 15, "Loading AI model...")
+                try:
                     llm = get_llm(model_name)
-                    try:
-                        if "vector_store" not in st.session_state:
-                            st.session_state["vector_store"] = build_vector_store(
-                                resume_text,
-                                job_text or "General AI/ML internship preparation",
-                                portfolio_text,
-                            )
-                        answer = ask_rag_question(llm, st.session_state["vector_store"], question)
-                        add_ask_count(resume_key)
-                        st.write(answer)
-                    except Exception as error:
-                        show_friendly_llm_error(error)
+                    update_loading(progress_bar, status_text, 35, "Preparing resume, portfolio, and job context...")
+                    if st.session_state.get("vector_key") != vector_key:
+                        st.session_state["vector_store"] = build_vector_store(
+                            resume_text,
+                            job_text or "General AI/ML internship preparation",
+                            portfolio_text,
+                        )
+                        st.session_state["resume_text"] = resume_text
+                        st.session_state["job_description"] = job_text
+                        st.session_state["vector_key"] = vector_key
+                    update_loading(progress_bar, status_text, 70, "Retrieving best matching context...")
+                    answer = ask_rag_question(llm, st.session_state["vector_store"], question)
+                    update_loading(progress_bar, status_text, 100, "Answer ready.")
+                    add_ask_count(resume_key)
+                    st.write(answer)
+                except Exception as error:
+                    show_friendly_llm_error(error)
+                finally:
+                    progress_bar.empty()
+                    status_text.empty()
 
     if resume_source == "Use default Vatsal_Dhuvad_Resume.pdf":
         st.session_state["positive_overview"] = DEFAULT_RESUME_OVERVIEW
@@ -603,9 +619,14 @@ def main() -> None:
         elif get_show_count(resume_key) >= MAX_SHOW_PER_RESUME:
             st.warning(f"Show limit reached. You can check {MAX_SHOW_PER_RESUME} job descriptions per resume.")
         elif st.session_state.get("analysis_key") != analysis_key:
+            progress_bar = st.progress(0, text="0%")
+            status_text = st.empty()
+            update_loading(progress_bar, status_text, 20, "Reading job description...")
             if resume_source == "Use default Vatsal_Dhuvad_Resume.pdf":
                 try:
+                    update_loading(progress_bar, status_text, 45, "Loading AI model...")
                     llm = get_llm(model_name)
+                    update_loading(progress_bar, status_text, 75, "Checking job match...")
                     match_line = get_default_resume_match_line(llm, job_text)
                 except Exception as error:
                     show_friendly_llm_error(error)
@@ -619,12 +640,18 @@ def main() -> None:
                     st.session_state.pop("analysis_result", None)
                     st.session_state.pop("final_report", None)
                     add_show_count(resume_key)
+                    update_loading(progress_bar, status_text, 100, "Job match ready.")
             else:
+                update_loading(progress_bar, status_text, 65, "Matching uploaded resume skills...")
                 st.session_state["default_job_result"] = build_uploaded_resume_match_text(resume_text, job_text)
                 st.session_state["analysis_key"] = analysis_key
                 st.session_state.pop("analysis_result", None)
                 st.session_state.pop("final_report", None)
                 add_show_count(resume_key)
+                update_loading(progress_bar, status_text, 100, "Job match ready.")
+
+            progress_bar.empty()
+            status_text.empty()
 
     if not job_text and "positive_overview" in st.session_state:
         st.subheader("Resume Overview")
